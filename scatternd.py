@@ -3,38 +3,54 @@ import onnx
 from onnx import AttributeProto, GraphProto, OperatorSetIdProto, TensorProto, helper, numpy_helper  # noqa: F401
 import onnxruntime as ort
 
-MODEL_NAME = "gathernd"
-data_ = np.array([[[0, 1], [2, 3]], [[4, 5], [6, 7]]]
-                 ).reshape((2, 2, 2)).astype(np.int32)
-indices_ = np.array([[1], [0]]).reshape((2, 1)).astype(np.int64)
+import onnxruntime as ort
+import onnx
+from onnx import helper as helper
+from onnx import TensorProto as tp
+import numpy as np
 
+def getNPType(tpType):
+    if (tpType == TensorProto.UINT32):
+        return np.uint32
+    elif (tpType == TensorProto.INT32):
+        return np.int32
+    elif (tpType == TensorProto.FLOAT):
+        return np.float32
+    return np.float32
 
-def make_model(batch_dims):
+MODEL_NAME = "scatternd"
+
+TPTYPE = TensorProto.FLOAT
+NPTYPE = getNPType(TPTYPE)
+
+data_ = np.array([1.1, 2.2, 3.1, 4.5, 5.3, 6.1, 7.8, 8.9]
+                 ).reshape((8)).astype(NPTYPE)
+indices_ = np.array([4, 3, 1, 7]).reshape((1, 4, 1)).astype(np.int64)
+updates_ = np.array([9.1, 10.2, 11.3, 12.5]).reshape((1, 4)).astype(NPTYPE)
+
+def make_model():
     nodes = []
-    data = helper.make_tensor_value_info("data", TensorProto.INT32, [2, 2, 2])
+    data = helper.make_tensor_value_info("data", TPTYPE, [8])
     indices = helper.make_tensor_value_info(
-        "indices", TensorProto.INT64, [2, 1])
+        "indices", TensorProto.INT64, [1, 4, 1])
+    updates = helper.make_tensor_value_info(
+        "updates", TPTYPE, [1, 4])
     output = 0
-    if batch_dims == 0:
-        output = helper.make_tensor_value_info(
-            "output", TensorProto.INT32, [2, 2, 2])
-    if batch_dims == 1:
-        output = helper.make_tensor_value_info(
-            "output", TensorProto.INT32, [2, 2])
+    output = helper.make_tensor_value_info(
+            "output", TPTYPE, [8])
 
     gathernd_node = helper.make_node(
-        "GatherND",
-        ["data", "indices"],
+        "ScatterND",
+        ["data", "indices", "updates"],
         ["output"],
-        name="gathernd_2",
-        batch_dims=batch_dims,
+        name="scatternd_demo"
     )
     nodes.append(gathernd_node)
 
     graph_def = helper.make_graph(
         nodes,
         "test-model",
-        [data, indices],
+        [data, indices, updates],
         [output],
     )
 
@@ -50,25 +66,10 @@ def make_model(batch_dims):
 
     model_def = helper.make_model(
         graph_def, producer_name="onnx-example", **kwargs)
-    onnx.save(model_def, MODEL_NAME + str(batch_dims) + ".onnx")
+    onnx.save(model_def, MODEL_NAME + ".onnx")
 
 
-print("From 0:")
-print(data_[0:])
-print(data_[0:].shape)
-batch_dims = 0
-make_model(batch_dims)
-ort_sess = ort.InferenceSession(MODEL_NAME + str(batch_dims) + ".onnx")
-outputs = ort_sess.run(None, {'data': data_, 'indices': indices_})
-print(outputs)
-
-
-print("From 1:")
-print(data_[1:])
-print(data_[1:].shape)
-
-batch_dims = 1
-make_model(batch_dims)
-ort_sess = ort.InferenceSession(MODEL_NAME + str(batch_dims) + ".onnx")
-outputs = ort_sess.run(None, {'data': data_, 'indices': indices_})
+make_model()
+ort_sess = ort.InferenceSession(MODEL_NAME + ".onnx")
+outputs = ort_sess.run(None, {'data': data_, 'indices': indices_, 'updates': updates_})
 print(outputs)
