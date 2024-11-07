@@ -3,8 +3,6 @@ import onnx
 from onnx import AttributeProto, GraphProto, OperatorSetIdProto, TensorProto, helper, numpy_helper  # noqa: F401
 import onnxruntime as ort
 
-import onnxruntime as ort
-import onnx
 from onnx import helper as helper
 from onnx import TensorProto as tp
 import numpy as np
@@ -18,7 +16,7 @@ def getNPType(tpType):
         return np.float32
     return np.float32
 
-MODEL_NAME = "scatternd"
+MODEL_NAME = "scatternd-reduction"
 
 TPTYPE = TensorProto.FLOAT
 NPTYPE = getNPType(TPTYPE)
@@ -27,7 +25,7 @@ data_ = np.array([1.1, 2.2, 3.1, 4.5, 5.3, 6.1, 7.8, 8.9]).reshape((8)).astype(N
 indices_ = np.array([4, 3, 1, 7]).reshape((1, 4, 1)).astype(np.int64)
 updates_ = np.array([9.1, 10.2, 11.3, 12.5]).reshape((1, 4)).astype(NPTYPE)
 
-def make_model():
+def make_model(reduction):
     nodes = []
     data = helper.make_tensor_value_info("data", TPTYPE, [8])
     indices = helper.make_tensor_value_info(
@@ -42,7 +40,8 @@ def make_model():
         "ScatterND",
         ["data", "indices", "updates"],
         ["output"],
-        name="scatternd_demo"
+        reduction=reduction,
+        name="scatternd_demo",
     )
     nodes.append(gathernd_node)
 
@@ -55,7 +54,7 @@ def make_model():
 
     opsets = []
     onnxdomain = OperatorSetIdProto()
-    onnxdomain.version = 13
+    onnxdomain.version = 16
     # The empty string ("") or absence of this field implies the operator set that is defined as part of the ONNX specification.
     onnxdomain.domain = ""
     opsets.append(onnxdomain)
@@ -68,13 +67,13 @@ def make_model():
     onnx.save(model_def, MODEL_NAME + ".onnx")
 
 
-def buildAndRunBinaryGraph():
-    make_model()
+def buildAndRunBinaryGraph(reduction):
+    make_model(reduction)
     ort_sess = ort.InferenceSession(MODEL_NAME + ".onnx")
     outputs = ort_sess.run(None, {'data': data_, 'indices': indices_, 'updates': updates_})
     print(outputs)
     return MODEL_NAME + ".onnx"
 
 
-model_path = buildAndRunBinaryGraph()
+model_path = buildAndRunBinaryGraph('add')
 print(model_path)
