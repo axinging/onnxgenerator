@@ -14,18 +14,15 @@ def getNPType(tpType):
         return np.int32
     elif (tpType == TensorProto.FLOAT):
         return np.float32
+    elif (tpType == TensorProto.FLOAT16):
+        return np.float16
     return np.float32
 
 MODEL_NAME = "scatternd-reduction"
 
-TPTYPE = TensorProto.FLOAT
-NPTYPE = getNPType(TPTYPE)
 
-data_ = np.array([1.1, 2.2, 3.1, 4.5, 5.3, 6.1, 7.8, 8.9]).reshape((8)).astype(NPTYPE)
-indices_ = np.array([4, 3, 1, 7]).reshape((1, 4, 1)).astype(np.int64)
-updates_ = np.array([9.1, 10.2, 11.3, 12.5]).reshape((1, 4)).astype(NPTYPE)
-
-def make_model(reduction):
+def make_model(reduction, TPTYPE):
+    NPTYPE = getNPType(TPTYPE)
     nodes = []
     data = helper.make_tensor_value_info("data", TPTYPE, [8])
     indices = helper.make_tensor_value_info(
@@ -67,13 +64,24 @@ def make_model(reduction):
     onnx.save(model_def, MODEL_NAME + ".onnx")
 
 
-def buildAndRunBinaryGraph(reduction):
-    make_model(reduction)
+def buildAndRunBinaryGraph(reduction, TPTYPE = TensorProto.FLOAT):
+    
+    NPTYPE = getNPType(TPTYPE)
+    make_model(reduction, TPTYPE)
+
+    d1 =[1.1, 2.2, 3.1, 4.5, 5.3, 6.1, 7.8, 8.9] if  TPTYPE == TensorProto.FLOAT or TPTYPE == TensorProto.FLOAT16  else [1, 2, 3, 4, 5, 6, 7, 8]
+    d2 =[9.1, 10.2, 11.3, 12.5] if  TPTYPE == TensorProto.FLOAT else  [9, 10, 11, 12]
+
+    data_ = np.array(d1).reshape((8)).astype(NPTYPE)
+    indices_ = np.array([4, 3, 1, 7]).reshape((1, 4, 1)).astype(np.int64)
+    updates_ = np.array(d2).reshape((1, 4)).astype(NPTYPE)
+
     ort_sess = ort.InferenceSession(MODEL_NAME + ".onnx")
     outputs = ort_sess.run(None, {'data': data_, 'indices': indices_, 'updates': updates_})
     print(outputs)
     return MODEL_NAME + ".onnx"
 
-
-model_path = buildAndRunBinaryGraph('add')
-print(model_path)
+#buildAndRunBinaryGraph('add', TensorProto.FLOAT)
+buildAndRunBinaryGraph('mul', TensorProto.FLOAT16)
+#buildAndRunBinaryGraph('add', TensorProto.INT32)
+#buildAndRunBinaryGraph('mul', TensorProto.INT32)
